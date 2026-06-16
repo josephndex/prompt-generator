@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Prompt Generator</title>
+<style>
+  :root {
+    --bg: #0d0f12;
+    --surface: #161920;
+    --surface2: #1e2330;
+    --border: #2a3045;
+    --accent: #7c6df0;
+    --accent2: #a78bfa;
+    --text: #e8eaf0;
+    --muted: #6b7490;
+    --success: #34d399;
+    --warn: #f59e0b;
+    --mono: 'JetBrains Mono', 'Fira Code', monospace;
+    --sans: 'Inter', system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; }
+
+  .shell { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
+  .sidebar { background: var(--surface); border-right: 1px solid var(--border); padding: 24px 16px; display: flex; flex-direction: column; gap: 24px; }
+  .main { display: flex; flex-direction: column; padding: 32px; gap: 24px; max-width: 900px; }
+
+  .logo { display: flex; align-items: center; gap: 10px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+  .logo-icon { width: 32px; height: 32px; background: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+  .logo-text { font-size: 15px; font-weight: 600; letter-spacing: -0.3px; }
+  .logo-sub { font-size: 11px; color: var(--muted); letter-spacing: 0.5px; text-transform: uppercase; }
+
+  .sidebar-section h3 { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 10px; }
+
+  .repo-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 6px; cursor: pointer; font-size: 13px; color: var(--muted); transition: all 0.15s; border: 1px solid transparent; }
+  .repo-item:hover { background: var(--surface2); color: var(--text); }
+  .repo-item.active { background: rgba(124,109,240,0.15); border-color: rgba(124,109,240,0.3); color: var(--accent2); }
+  .repo-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+  .repo-item.active .repo-dot { background: var(--accent); }
+
+  .stat-row { display: flex; justify-content: space-between; font-size: 12px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .stat-row:last-child { border-bottom: none; }
+  .stat-label { color: var(--muted); }
+  .stat-val { color: var(--accent2); font-weight: 500; }
+
+  .token-field input { width: 100%; background: var(--surface2); border: 1px solid var(--border); color: var(--text); font-family: var(--mono); font-size: 11px; padding: 8px 10px; border-radius: 6px; outline: none; }
+  .token-field input:focus { border-color: var(--accent); }
+  .token-status { font-size: 10px; margin-top: 4px; }
+  .token-ok { color: var(--success); }
+  .token-err { color: #f87171; }
+
+  .page-head { display: flex; justify-content: space-between; align-items: flex-start; }
+  .page-title { font-size: 22px; font-weight: 600; letter-spacing: -0.5px; }
+  .page-sub { font-size: 13px; color: var(--muted); margin-top: 4px; }
+  .badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; background: rgba(124,109,240,0.12); border: 1px solid rgba(124,109,240,0.25); border-radius: 20px; font-size: 11px; color: var(--accent2); }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px; }
+  .card-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); margin-bottom: 10px; }
+
+  .request-input { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: var(--sans); font-size: 14px; line-height: 1.6; padding: 14px; resize: vertical; min-height: 120px; outline: none; transition: border-color 0.15s; }
+  .request-input:focus { border-color: var(--accent); }
+  .request-input::placeholder { color: var(--muted); }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .chip { padding: 4px 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; font-size: 11px; color: var(--muted); cursor: pointer; transition: all 0.15s; }
+  .chip:hover { border-color: var(--accent); color: var(--accent2); }
+  .chip.on { background: rgba(124,109,240,0.12); border-color: rgba(124,109,240,0.3); color: var(--accent2); }
+
+  .btn-gen { display: flex; align-items: center; gap: 8px; padding: 12px 24px; background: var(--accent); border: none; border-radius: 8px; color: #fff; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.15s; }
+  .btn-gen:hover { background: var(--accent2); }
+  .btn-gen:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-sm { padding: 7px 14px; font-size: 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); cursor: pointer; transition: all 0.15s; }
+  .btn-sm:hover { border-color: var(--accent); color: var(--accent2); }
+
+  .prompt-out { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px; font-family: var(--mono); font-size: 12px; line-height: 1.7; color: #c4cbe8; white-space: pre-wrap; word-break: break-word; min-height: 80px; }
+  .prompt-actions { display: flex; gap: 8px; margin-top: 12px; align-items: center; flex-wrap: wrap; }
+  .copy-btn { display: flex; align-items: center; gap: 6px; padding: 8px 16px; background: var(--accent); border: none; border-radius: 6px; color: #fff; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s; }
+  .copy-btn:hover { background: var(--accent2); }
+  .copy-btn.copied { background: var(--success); color: #0d1117; }
+
+  .memory-entry { padding: 10px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface2); margin-bottom: 8px; font-size: 12px; }
+  .memory-req { color: var(--text); margin-bottom: 3px; }
+  .memory-meta { color: var(--muted); font-size: 10px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .memory-quality { padding: 2px 6px; border-radius: 4px; font-size: 10px; }
+  .q-good { background: rgba(52,211,153,0.12); color: var(--success); }
+  .q-avg  { background: rgba(245,158,11,0.12); color: var(--warn); }
+  .team-badge { padding: 2px 6px; border-radius: 4px; font-size: 10px; background: rgba(124,109,240,0.15); color: var(--accent2); }
+
+  .spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.2); border-top-color: #fff; border-radius: 50%; animation: spin 0.6s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .context-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .ctx-item { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; }
+  .ctx-key { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .ctx-val { font-size: 12px; color: var(--text); margin-top: 3px; font-family: var(--mono); }
+
+  .empty-state { color: var(--muted); font-size: 13px; text-align: center; padding: 24px; }
+  .pulse { animation: pulse 1.5s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* ── SHARE MODAL ── */
+  .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; align-items: center; justify-content: center; }
+  .modal-backdrop.open { display: flex; }
+  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 28px; width: 520px; max-width: 95vw; }
+  .modal-title { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+  .modal-sub { font-size: 12px; color: var(--muted); margin-bottom: 20px; }
+  .modal-close { float: right; background: none; border: none; color: var(--muted); font-size: 18px; cursor: pointer; margin-top: -4px; }
+  .modal-close:hover { color: var(--text); }
+
+  .tab-row { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 0; }
+  .tab { padding: 8px 16px; font-size: 12px; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 0.15s; }
+  .tab.active { color: var(--accent2); border-bottom-color: var(--accent); }
+
+  .share-field { margin-bottom: 14px; }
+  .share-field label { display: block; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+  .share-field input, .share-field select { width: 100%; background: var(--surface2); border: 1px solid var(--border); color: var(--text); font-size: 13px; padding: 9px 12px; border-radius: 6px; outline: none; font-family: var(--mono); }
+  .share-field input:focus, .share-field select:focus { border-color: var(--accent); }
+  .share-field select option { background: var(--surface2); }
+
+  .share-url-box { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; font-family: var(--mono); font-size: 11px; color: var(--accent2); word-break: break-all; margin-bottom: 10px; }
+  .share-info { font-size: 11px; color: var(--muted); line-height: 1.6; padding: 10px 12px; background: var(--surface2); border-radius: 6px; border-left: 2px solid var(--accent); }
+
+  .import-log { max-height: 200px; overflow-y: auto; margin-top: 10px; }
+  .import-entry { padding: 8px 10px; border-radius: 5px; border: 1px solid var(--border); background: var(--surface2); margin-bottom: 6px; font-size: 11px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .import-entry-text { color: var(--text); flex: 1; }
+  .import-entry-meta { color: var(--muted); font-size: 10px; white-space: nowrap; }
+  .import-check { color: var(--success); }
+
+  .btn-primary { padding: 9px 20px; background: var(--accent); border: none; border-radius: 6px; color: #fff; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s; }
+  .btn-primary:hover { background: var(--accent2); }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .share-result { margin-top: 12px; padding: 10px 12px; border-radius: 6px; font-size: 12px; display: none; }
+  .share-result.ok { background: rgba(52,211,153,0.1); border: 1px solid rgba(52,211,153,0.2); color: var(--success); }
+  .share-result.err { background: rgba(248,113,113,0.1); border: 1px solid rgba(248,113,113,0.2); color: #f87171; }
+</style>
+</head>
+<body>
+
+<!-- SHARE MODAL -->
+<div class="modal-backdrop" id="share-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeShare()">✕</button>
+    <div class="modal-title">Team memory sharing</div>
+    <div class="modal-sub">Share your prompt log with teammates or pull theirs in.</div>
+
+    <div class="tab-row">
+      <div class="tab active" onclick="switchTab('export')">Export / share</div>
+      <div class="tab" onclick="switchTab('import')">Import from teammate</div>
+      <div class="tab" onclick="switchTab('link')">Share link</div>
+    </div>
+
+    <!-- EXPORT TAB -->
+    <div id="tab-export">
+      <div class="share-info" style="margin-bottom:14px">
+        This pushes your <code>.prompt-log.json</code> from the active repo into a shared repo that teammates can read. They import from there to get your patterns.
+      </div>
+      <div class="share-field">
+        <label>Shared memory repo (e.g. your-org/prompt-memory)</label>
+        <input type="text" id="shared-repo" placeholder="yourorg/prompt-memory"/>
+      </div>
+      <div class="share-field">
+        <label>Your display name (shows in teammate's log)</label>
+        <input type="text" id="share-author" placeholder="Tj"/>
+      </div>
+      <button class="btn-primary" onclick="exportMemory()">Push my memory →</button>
+      <div class="share-result" id="export-result"></div>
+    </div>
+
+    <!-- IMPORT TAB -->
+    <div id="tab-import" style="display:none">
+      <div class="share-info" style="margin-bottom:14px">
+        Pull a teammate's prompt log into your active repo's memory. Their patterns will be included when generating your next prompts.
+      </div>
+      <div class="share-field">
+        <label>Shared memory repo</label>
+        <input type="text" id="import-shared-repo" placeholder="yourorg/prompt-memory"/>
+      </div>
+      <div class="share-field">
+        <label>Teammate's name (their file in the shared repo)</label>
+        <input type="text" id="import-author" placeholder="alice"/>
+      </div>
+      <button class="btn-primary" onclick="importMemory()">Pull their memory</button>
+      <div class="import-log" id="import-log" style="display:none"></div>
+      <div class="share-result" id="import-result"></div>
+    </div>
+
+    <!-- LINK TAB -->
+    <div id="tab-link" style="display:none">
+      <div class="share-info" style="margin-bottom:14px">
+        Generate a read-only link to your prompt log. Anyone with this link can import your memory into their own PromptGen without needing access to your repo.
+      </div>
+      <div class="share-field">
+        <label>Your GitHub username</label>
+        <input type="text" id="link-user" placeholder="yourname" oninput="updateShareLink()"/>
+      </div>
+      <div class="share-field">
+        <label>Repo containing your .prompt-log.json</label>
+        <input type="text" id="link-repo" placeholder="your-repo" oninput="updateShareLink()"/>
+      </div>
+      <div class="share-url-box" id="share-url-preview">Fill in the fields above to generate a link</div>
+      <button class="btn-primary" onclick="copyShareLink()">📋 Copy link</button>
+      <div class="share-result" id="link-result"></div>
+    </div>
+  </div>
+</div>
+
+<div class="shell">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div>
+      <div class="logo">
+        <div class="logo-icon">⚡</div>
+        <div>
+          <div class="logo-text">PromptGen</div>
+          <div class="logo-sub">For Codex</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <h3>GitHub Token</h3>
+      <div class="token-field">
+        <input type="password" id="gh-token" placeholder="ghp_xxxxxxxxxxxx" oninput="onTokenInput(this.value)"/>
+        <div class="token-status" id="token-status"></div>
+      </div>
+    </div>
+
+    <div class="sidebar-section" style="flex:1">
+      <h3>Repositories</h3>
+      <div id="repo-list"><div class="empty-state">Enter token to load repos</div></div>
+    </div>
+
+    <div class="sidebar-section">
+      <h3>Memory stats</h3>
+      <div class="stat-row"><span class="stat-label">Prompts logged</span><span class="stat-val" id="s-total">0</span></div>
+      <div class="stat-row"><span class="stat-label">From teammates</span><span class="stat-val" id="s-team">0</span></div>
+      <div class="stat-row"><span class="stat-label">Repos learned</span><span class="stat-val" id="s-repos">0</span></div>
+      <div class="stat-row"><span class="stat-label">Patterns found</span><span class="stat-val" id="s-patterns">0</span></div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <div class="page-head">
+      <div>
+        <div class="page-title">Generate Codex prompt</div>
+        <div class="page-sub">Paste what you want changed. Get a precision prompt for your agent.</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <div id="active-repo-badge" style="display:none" class="badge">
+          <span>📁</span><span id="badge-name">—</span>
+        </div>
+        <button class="btn-sm" onclick="openShare()" title="Share memory with teammates">🤝 Share</button>
+      </div>
+    </div>
+
+    <!-- Request input -->
+    <div class="card">
+      <div class="card-label">What do you want to change?</div>
+      <textarea class="request-input" id="request-input" placeholder="e.g. Refactor the auth middleware to use JWT instead of sessions. Make sure existing tests still pass and don't touch the user model."></textarea>
+      <div class="chips">
+        <div class="chip" onclick="toggleChip(this,'refactor')">♻️ Refactor</div>
+        <div class="chip" onclick="toggleChip(this,'bugfix')">🐛 Bug fix</div>
+        <div class="chip" onclick="toggleChip(this,'feature')">✨ New feature</div>
+        <div class="chip" onclick="toggleChip(this,'test')">🧪 Add tests</div>
+        <div class="chip" onclick="toggleChip(this,'docs')">📝 Docs</div>
+        <div class="chip" onclick="toggleChip(this,'perf')">⚡ Performance</div>
+      </div>
+    </div>
+
+    <!-- Repo context -->
+    <div class="card" id="ctx-card" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div class="card-label" style="margin:0">Repo context (auto-read)</div>
+        <button class="btn-sm" onclick="refreshContext()">↻ Refresh</button>
+      </div>
+      <div class="context-grid" id="ctx-grid"></div>
+    </div>
+
+    <!-- Generate -->
+    <div style="display:flex;align-items:center;gap:12px">
+      <button class="btn-gen" id="gen-btn" onclick="generate()" disabled>
+        <span id="gen-icon">⚡</span>
+        <span id="gen-label">Generate prompt</span>
+      </button>
+      <span id="gen-hint" style="font-size:12px;color:var(--muted)">Select a repo to enable</span>
+    </div>
+
+    <!-- Output -->
+    <div class="card" id="output-card" style="display:none">
+      <div class="card-label">Generated Codex prompt</div>
+      <div class="prompt-out" id="prompt-out"></div>
+      <div class="prompt-actions">
+        <button class="copy-btn" id="copy-btn" onclick="copyPrompt()">📋 Copy prompt</button>
+        <button class="btn-sm" onclick="saveToGitHub()">💾 Save to memory</button>
+        <button class="btn-sm" onclick="openShare()">🤝 Share with team</button>
+        <span id="save-status" style="font-size:12px;color:var(--success);display:none">✓ Saved</span>
+      </div>
+    </div>
+
+    <!-- Memory log -->
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div class="card-label" style="margin:0">Memory log</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span style="font-size:11px;color:var(--muted)">Past prompts for this repo</span>
+          <button class="btn-sm" style="font-size:11px;padding:4px 10px" onclick="openShare()">+ Import teammate</button>
+        </div>
+      </div>
+      <div id="memory-log"><div class="empty-state">No memory yet for this repo.</div></div>
+    </div>
+  </main>
+</div>
+
+<script>
+const S = {
+  token: '', repos: [], activeRepo: null,
+  context: null, memory: [], chips: new Set(),
+  generatedPrompt: '', generating: false,
+  activeTab: 'export'
+};
+
+// ── TOKEN ──────────────────────────────────────────────────────────────────
+let tokenDebounce;
+function onTokenInput(val) {
+  S.token = val.trim();
+  clearTimeout(tokenDebounce);
+  tokenDebounce = setTimeout(loadRepos, 600);
+}
+
+async function loadRepos() {
+  const el = document.getElementById('token-status');
+  const list = document.getElementById('repo-list');
+  if (!S.token) { el.textContent=''; list.innerHTML='<div class="empty-state">Enter token to load repos</div>'; return; }
+  el.textContent='Connecting...'; el.className='token-status';
+  list.innerHTML='<div class="empty-state pulse">Loading repos...</div>';
+  try {
+    S.repos = await ghFetch('https://api.github.com/user/repos?per_page=50&sort=updated');
+    el.textContent=`✓ ${S.repos.length} repos loaded`; el.className='token-status token-ok';
+    renderRepos();
+  } catch(e) {
+    el.textContent='Invalid token or no access'; el.className='token-status token-err';
+    list.innerHTML='<div class="empty-state">Check your token</div>';
+  }
+}
+
+function renderRepos() {
+  document.getElementById('repo-list').innerHTML = S.repos.map(r=>`
+    <div class="repo-item" onclick="selectRepo('${r.full_name}')" id="repo-${r.full_name.replace('/','__')}">
+      <div class="repo-dot"></div><span>${r.name}</span>
+    </div>`).join('');
+}
+
+// ── REPO SELECT ────────────────────────────────────────────────────────────
+async function selectRepo(full) {
+  S.activeRepo = S.repos.find(r=>r.full_name===full);
+  document.querySelectorAll('.repo-item').forEach(el=>el.classList.remove('active'));
+  const el = document.getElementById('repo-'+full.replace('/','__'));
+  if (el) el.classList.add('active');
+  document.getElementById('active-repo-badge').style.display='flex';
+  document.getElementById('badge-name').textContent=S.activeRepo.name;
+  document.getElementById('ctx-card').style.display='block';
+  document.getElementById('gen-btn').disabled=false;
+  document.getElementById('gen-hint').textContent='Ready';
+  await Promise.all([loadContext(), loadMemory()]);
+}
+
+// ── CONTEXT ─────────────────────────────────────────────────────────────────
+async function loadContext() {
+  const grid = document.getElementById('ctx-grid');
+  grid.innerHTML='<div class="empty-state pulse" style="grid-column:1/-1">Reading repo...</div>';
+  try {
+    const [info,commits,tree] = await Promise.all([
+      ghFetch(`https://api.github.com/repos/${S.activeRepo.full_name}`),
+      ghFetch(`https://api.github.com/repos/${S.activeRepo.full_name}/commits?per_page=5`),
+      ghFetch(`https://api.github.com/repos/${S.activeRepo.full_name}/git/trees/HEAD?recursive=1`).catch(()=>({tree:[]}))
+    ]);
+    const fileList=(tree.tree||[]).filter(f=>f.type==='blob').slice(0,60).map(f=>f.path).join('\n');
+    const recentCommits=commits.slice(0,5).map(c=>`- ${c.commit.message.split('\n')[0]}`).join('\n');
+    S.context={info,commits:recentCommits,files:fileList};
+    const topFiles=(tree.tree||[]).filter(f=>f.type==='blob').slice(0,8).map(f=>f.path).join(', ')||'N/A';
+    grid.innerHTML=`
+      <div class="ctx-item"><div class="ctx-key">Language</div><div class="ctx-val">${info.language||'Unknown'}</div></div>
+      <div class="ctx-item"><div class="ctx-key">Default branch</div><div class="ctx-val">${info.default_branch}</div></div>
+      <div class="ctx-item" style="grid-column:1/-1"><div class="ctx-key">Recent commits</div><div class="ctx-val" style="white-space:pre-line">${recentCommits||'None'}</div></div>
+      <div class="ctx-item" style="grid-column:1/-1"><div class="ctx-key">Files (sample)</div><div class="ctx-val" style="line-height:1.8">${topFiles}</div></div>`;
+  } catch(e) {
+    grid.innerHTML='<div class="empty-state" style="grid-column:1/-1">Could not read repo context</div>';
+  }
+}
+function refreshContext() { if (S.activeRepo) loadContext(); }
+
+// ── MEMORY ──────────────────────────────────────────────────────────────────
+async function loadMemory() {
+  try {
+    const data = await ghFetch(`https://api.github.com/repos/${S.activeRepo.full_name}/contents/.prompt-log.json`);
+    S.memory = JSON.parse(atob(data.content));
+  } catch(e) { S.memory=[]; }
+  updateStats(); renderMemoryLog();
+}
+
+function renderMemoryLog() {
+  const el=document.getElementById('memory-log');
+  if (!S.memory.length) { el.innerHTML='<div class="empty-state">No memory yet for this repo. Generate and save prompts to build it.</div>'; return; }
+  el.innerHTML=S.memory.slice().reverse().slice(0,10).map(m=>`
+    <div class="memory-entry">
+      <div class="memory-req">${escHtml(m.request||'')}</div>
+      <div class="memory-meta">
+        <span>${m.repo||''}</span>
+        <span>${m.date?new Date(m.date).toLocaleDateString():''}</span>
+        <span class="memory-quality ${m.quality==='good'?'q-good':'q-avg'}">${m.quality==='good'?'✓ worked':'~ ok'}</span>
+        ${m.author?`<span class="team-badge">👤 ${escHtml(m.author)}</span>`:''}
+        <span>${(m.tags||[]).join(', ')}</span>
+      </div>
+    </div>`).join('');
+}
+
+function updateStats() {
+  const mine=S.memory.filter(m=>!m.imported).length;
+  const team=S.memory.filter(m=>m.imported).length;
+  document.getElementById('s-total').textContent=mine;
+  document.getElementById('s-team').textContent=team;
+  document.getElementById('s-repos').textContent=new Set(S.memory.map(m=>m.repo)).size;
+  document.getElementById('s-patterns').textContent=Math.floor(S.memory.length/3);
+}
+
+// ── CHIPS ───────────────────────────────────────────────────────────────────
+function toggleChip(el,tag) {
+  if(S.chips.has(tag)){S.chips.delete(tag);el.classList.remove('on');}
+  else{S.chips.add(tag);el.classList.add('on');}
+}
+
+// ── GENERATE ────────────────────────────────────────────────────────────────
+async function generate() {
+  const request=document.getElementById('request-input').value.trim();
+  if(!request){alert('Paste what you want changed first.');return;}
+  if(!S.activeRepo){alert('Select a repo first.');return;}
+  setGenerating(true);
+  const memoryContext=S.memory.slice(-12).map(m=>
+    `[${m.author||'me'}] Request: ${m.request}\nTags: ${(m.tags||[]).join(', ')}\nQuality: ${m.quality||'unknown'}`
+  ).join('\n---\n');
+  const systemPrompt=`You are a world-class prompt engineer for OpenAI Codex.
+Generate precise, production-ready prompts that Codex agents can execute to modify codebases.
+
+RULES:
+1. Start with the repo context (language, structure, conventions)
+2. State the task clearly in imperative form
+3. Specify constraints (don't break X, preserve Y, keep Z style)
+4. List files likely to be touched
+5. Define success criteria (tests pass, linting passes, etc.)
+6. Under 400 words but dense with specifics
+
+Output ONLY the final Codex prompt, no preamble, no explanation.`;
+  const userMsg=`REPO: ${S.activeRepo.full_name}
+LANGUAGE: ${S.context?.info?.language||'Unknown'}
+BRANCH: ${S.context?.info?.default_branch||'main'}
+
+RECENT COMMITS:
+${S.context?.commits||'N/A'}
+
+FILE STRUCTURE (sample):
+${S.context?.files?.split('\n').slice(0,30).join('\n')||'N/A'}
+
+CHANGE REQUESTED:
+${request}
+
+TAGS: ${[...S.chips].join(', ')||'general'}
+
+PAST PROMPT PATTERNS (including team memory — learn from these):
+${memoryContext||'No memory yet.'}
+
+Generate the optimal Codex prompt.`;
+  try {
+    const res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1000,system:systemPrompt,messages:[{role:'user',content:userMsg}]})
+    });
+    const data=await res.json();
+    S.generatedPrompt=data.content?.[0]?.text||'';
+    document.getElementById('prompt-out').textContent=S.generatedPrompt;
+    document.getElementById('output-card').style.display='block';
+    document.getElementById('save-status').style.display='none';
+    document.getElementById('output-card').scrollIntoView({behavior:'smooth'});
+  } catch(e){alert('Generation failed: '+e.message);}
+  setGenerating(false);
+}
+
+function setGenerating(v) {
+  S.generating=v;
+  document.getElementById('gen-btn').disabled=v;
+  document.getElementById('gen-icon').innerHTML=v?'<div class="spinner"></div>':'⚡';
+  document.getElementById('gen-label').textContent=v?'Generating...':'Generate prompt';
+}
+
+// ── COPY ────────────────────────────────────────────────────────────────────
+function copyPrompt() {
+  navigator.clipboard.writeText(S.generatedPrompt).then(()=>{
+    const btn=document.getElementById('copy-btn');
+    btn.textContent='✓ Copied!'; btn.classList.add('copied');
+    setTimeout(()=>{btn.innerHTML='📋 Copy prompt';btn.classList.remove('copied');},2000);
+  });
+}
+
+// ── SAVE TO GITHUB ───────────────────────────────────────────────────────────
+async function saveToGitHub(customMemory, repoFull) {
+  const targetRepo = repoFull || S.activeRepo?.full_name;
+  const memToSave = customMemory || S.memory;
+  if (!targetRepo) return;
+  if (!customMemory) {
+    if (!S.generatedPrompt) return;
+    const entry={
+      date:new Date().toISOString(),
+      repo:targetRepo,
+      request:document.getElementById('request-input').value.trim(),
+      tags:[...S.chips],
+      prompt:S.generatedPrompt,
+      quality:'good'
+    };
+    S.memory.push(entry);
+  }
+  const content=btoa(unescape(encodeURIComponent(JSON.stringify(memToSave,null,2))));
+  try {
+    let sha;
+    try { const ex=await ghFetch(`https://api.github.com/repos/${targetRepo}/contents/.prompt-log.json`); sha=ex.sha; } catch(e){}
+    await ghFetch(`https://api.github.com/repos/${targetRepo}/contents/.prompt-log.json`,'PUT',{
+      message:`prompt-gen: update memory log`,content,...(sha?{sha}:{})
+    });
+    if (!customMemory) {
+      document.getElementById('save-status').style.display='inline';
+      updateStats(); renderMemoryLog();
+    }
+    return true;
+  } catch(e) {
+    if (!customMemory) { alert('Save failed — check token has write access.\n'+e.message); S.memory.pop(); }
+    return false;
+  }
+}
+
+// ── SHARE MODAL ──────────────────────────────────────────────────────────────
+function openShare() { document.getElementById('share-modal').classList.add('open'); }
+function closeShare() { document.getElementById('share-modal').classList.remove('open'); }
+document.getElementById('share-modal').addEventListener('click',function(e){if(e.target===this)closeShare();});
+
+function switchTab(tab) {
+  S.activeTab=tab;
+  document.querySelectorAll('.tab').forEach((el,i)=>{
+    const tabs=['export','import','link'];
+    el.classList.toggle('active',tabs[i]===tab);
+  });
+  ['export','import','link'].forEach(t=>{
+    document.getElementById('tab-'+t).style.display=t===tab?'block':'none';
+  });
+}
+
+// EXPORT: push my memory to a shared repo
+async function exportMemory() {
+  const sharedRepo=document.getElementById('shared-repo').value.trim();
+  const author=document.getElementById('share-author').value.trim()||'teammate';
+  const res=document.getElementById('export-result');
+  if (!sharedRepo){showResult(res,'Enter the shared repo name','err');return;}
+  if (!S.memory.length){showResult(res,'No memory to export yet — generate and save some prompts first','err');return;}
+  const tagged=S.memory.map(m=>({...m,author}));
+  const content=btoa(unescape(encodeURIComponent(JSON.stringify(tagged,null,2))));
+  const path=`.prompt-memory/${author}.json`;
+  try {
+    let sha;
+    try { const ex=await ghFetch(`https://api.github.com/repos/${sharedRepo}/contents/${path}`); sha=ex.sha; } catch(e){}
+    await ghFetch(`https://api.github.com/repos/${sharedRepo}/contents/${path}`,'PUT',{
+      message:`prompt-gen: ${author} pushed ${tagged.length} prompt patterns`,
+      content,...(sha?{sha}:{})
+    });
+    showResult(res,`✓ Pushed ${tagged.length} prompts to ${sharedRepo}/.prompt-memory/${author}.json`,'ok');
+  } catch(e){showResult(res,'Failed: '+e.message+' — make sure the shared repo exists and your token has write access','err');}
+}
+
+// IMPORT: pull a teammate's memory into current repo
+async function importMemory() {
+  const sharedRepo=document.getElementById('import-shared-repo').value.trim();
+  const author=document.getElementById('import-author').value.trim();
+  const res=document.getElementById('import-result');
+  const log=document.getElementById('import-log');
+  if (!sharedRepo||!author){showResult(res,'Fill in both fields','err');return;}
+  if (!S.activeRepo){showResult(res,'Select an active repo first','err');return;}
+  try {
+    const data=await ghFetch(`https://api.github.com/repos/${sharedRepo}/contents/.prompt-memory/${author}.json`);
+    const imported=JSON.parse(atob(data.content));
+    const existing=new Set(S.memory.map(m=>m.date+'|'+m.request));
+    const newOnes=imported.filter(m=>!existing.has(m.date+'|'+m.request)).map(m=>({...m,imported:true}));
+    if (!newOnes.length){showResult(res,'All prompts already in your memory','ok');return;}
+    S.memory.push(...newOnes);
+    log.style.display='block';
+    log.innerHTML=newOnes.map(m=>`
+      <div class="import-entry">
+        <div class="import-entry-text">${escHtml(m.request||'')}</div>
+        <div class="import-entry-meta">${m.author||author} · ${m.date?new Date(m.date).toLocaleDateString():''}</div>
+        <span class="import-check">✓</span>
+      </div>`).join('');
+    await saveToGitHub(S.memory, S.activeRepo.full_name);
+    updateStats(); renderMemoryLog();
+    showResult(res,`✓ Imported ${newOnes.length} new prompts from ${author}`,'ok');
+  } catch(e){showResult(res,'Could not find memory for that teammate. Check the repo and name.','err');}
+}
+
+// LINK TAB
+function updateShareLink() {
+  const user=document.getElementById('link-user').value.trim();
+  const repo=document.getElementById('link-repo').value.trim();
+  const el=document.getElementById('share-url-preview');
+  if(user&&repo){
+    el.textContent=`promptgen://import?repo=${user}/${repo}&author=${user}`;
+  } else {
+    el.textContent='Fill in the fields above to generate a link';
+  }
+}
+function copyShareLink() {
+  const url=document.getElementById('share-url-preview').textContent;
+  if(url.startsWith('Fill')){showResult(document.getElementById('link-result'),'Fill in your details first','err');return;}
+  navigator.clipboard.writeText(url).then(()=>showResult(document.getElementById('link-result'),'✓ Link copied — share this with teammates so they can import your memory','ok'));
+}
+
+// ── UTILS ────────────────────────────────────────────────────────────────────
+function showResult(el,msg,type) {
+  el.textContent=msg; el.className='share-result '+type; el.style.display='block';
+  setTimeout(()=>{el.style.display='none';},5000);
+}
+function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+async function ghFetch(url,method='GET',body=null) {
+  const opts={method,headers:{Authorization:`token ${S.token}`,Accept:'application/vnd.github+json'}};
+  if(body){opts.headers['Content-Type']='application/json';opts.body=JSON.stringify(body);}
+  const r=await fetch(url,opts);
+  if(!r.ok) throw new Error(r.status+' '+r.statusText);
+  return r.json();
+}
+</script>
+</body>
+</html>
